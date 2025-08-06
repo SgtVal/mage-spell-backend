@@ -4,9 +4,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
 const spellMap = {};
 
+// Save spell from client
 app.post("/cast", (req, res) => {
   const { userId, spell } = req.body;
   spellMap[userId] = spell;
@@ -14,9 +14,17 @@ app.post("/cast", (req, res) => {
   res.sendStatus(200);
 });
 
+// Get spell for Roblox, then clear it
 app.get("/get-spell/:userId", (req, res) => {
-  const spell = spellMap[req.params.userId] || null;
-  res.json({ spell });
+  const userId = req.params.userId;
+  const spell = spellMap[userId];
+
+  if (spell) {
+    delete spellMap[userId]; // ✅ Clear after fetching
+    res.json({ spell });
+  } else {
+    res.json({}); // No spell available
+  }
 });
 
 const port = process.env.PORT || 3000;
