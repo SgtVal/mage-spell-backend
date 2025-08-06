@@ -1,113 +1,69 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mage Arena Voice Casting</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #0d0d0d;
-      color: white;
-      text-align: center;
-      padding: 2em;
-    }
-    h1 {
-      color: #ffcc00;
-    }
-    #listenButton {
-      background: #6610f2;
-      color: white;
-      font-size: 1.5em;
-      padding: 1em 2em;
-      border: none;
-      border-radius: 1em;
-      cursor: pointer;
-      margin-top: 2em;
-    }
-    #listenButton:active {
-      background: #520dc2;
-    }
-    #status {
-      margin-top: 1em;
-      font-size: 1.2em;
-      color: #cccccc;
-    }
-  </style>
-</head>
-<body>
-  <h1>🎙️ Mage Arena Voice Casting</h1>
-  <p>Hold the button and speak your spell (e.g. "fireball")</p>
+// Helper to get userId from URL ?userId=12345
+function getUserId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('userId') || null;
+}
 
-  <button id="listenButton">🎤 Hold to Cast</button>
-  <div id="status">Status: Idle</div>
+const playerId = getUserId();
+const backendURL = "https://mage-spell-api.onrender.com";
 
-  <script>
-    const playerId = "4279451426"; // Your Roblox UserId — make dynamic later if needed
-    const backendURL = "https://mage-spell-api.onrender.com";
+let recognitionActive = false;
 
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
+const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+recognition.lang = 'en-US';
+recognition.interimResults = false;
 
-    const button = document.getElementById("listenButton");
-    const status = document.getElementById("status");
+recognition.onresult = (event) => {
+  const transcript = event.results[0][0].transcript.toLowerCase();
+  status.innerText = "🗣️ Heard: " + transcript;
 
-    button.addEventListener("mousedown", () => {
-      status.innerText = "🎧 Listening...";
-      recognition.start();
-    });
+  fetch(backendURL + "/cast", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId: playerId, spell: transcript })
+  }).then(() => {
+    status.innerText = "✅ Spell Sent: " + transcript;
+  }).catch(() => {
+    status.innerText = "❌ Error sending spell";
+  });
+};
 
-    button.addEventListener("mouseup", () => {
-      status.innerText = "⏳ Processing...";
-      recognition.stop();
-    });
+recognition.onerror = (event) => {
+  status.innerText = "⚠️ Error: " + event.error;
+};
 
-    // Mobile support for touch
-    button.addEventListener("touchstart", () => {
-      status.innerText = "🎧 Listening...";
-      recognition.start();
-    });
+function startRecognition() {
+  if (!recognitionActive) {
+    recognition.start();
+    recognitionActive = true;
+    status.innerText = "🎧 Listening...";
+  }
+}
 
-    button.addEventListener("touchend", () => {
-      status.innerText = "⏳ Processing...";
-      recognition.stop();
-    });
+function stopRecognition() {
+  if (recognitionActive) {
+    recognition.stop();
+    recognitionActive = false;
+    status.innerText = "⏳ Processing...";
+  }
+}
 
-    // Optional: keypress (e.g. M key)
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "m") {
-        recognition.start();
-        status.innerText = "🎧 Listening (M key)...";
+// Poll Roblox backend every 2 seconds to check if it wants to listen
+setInterval(() => {
+  if (!playerId) {
+    status.innerText = "❌ No userId in URL";
+    return;
+  }
+  fetch(`${backendURL}/listening/${playerId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.active && !recognitionActive) {
+        startRecognition();
+      } else if (!data.active && recognitionActive) {
+        stopRecognition();
       }
+    })
+    .catch(() => {
+      status.innerText = "⚠️ Network error";
     });
-    document.addEventListener("keyup", (e) => {
-      if (e.key === "m") {
-        recognition.stop();
-        status.innerText = "⏳ Processing...";
-      }
-    });
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript.toLowerCase();
-      status.innerText = "🗣️ Heard: " + transcript;
-
-      fetch(backendURL + "/cast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: playerId, spell: transcript })
-      })
-        .then(() => {
-          status.innerText = "✅ Spell Sent: " + transcript;
-        })
-        .catch(() => {
-          status.innerText = "❌ Error sending spell";
-        });
-    };
-
-    recognition.onerror = (event) => {
-      status.innerText = "⚠️ Error: " + event.error;
-    };
-  </script>
-</body>
-</html>
+}, 2000);
