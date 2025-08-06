@@ -1,137 +1,180 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mage Arena Voice Casting</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #0d0d0d;
-      color: white;
-      text-align: center;
-      padding: 2em;
-    }
-    h1 {
-      color: #ffcc00;
-    }
-    #listenButton {
-      background: #6610f2;
-      color: white;
-      font-size: 1.5em;
-      padding: 1em 2em;
-      border: none;
-      border-radius: 1em;
-      cursor: pointer;
-      margin-top: 2em;
-    }
-    #listenButton:active {
-      background: #520dc2;
-    }
-    #status {
-      margin-top: 1em;
-      font-size: 1.2em;
-      color: #cccccc;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mage Arena Voice Casting</title>
+<style>
+  body {
+    background: #0d0d0d;
+    color: white;
+    font-family: sans-serif;
+    text-align: center;
+    padding: 2em;
+  }
+  h1 {
+    color: #ffcc00;
+  }
+  #listenButton {
+    background: #6610f2;
+    border: none;
+    border-radius: 1em;
+    color: white;
+    cursor: pointer;
+    font-size: 1.5em;
+    padding: 1em 2em;
+    margin-top: 2em;
+    user-select: none;
+  }
+  #listenButton:active {
+    background: #520dc2;
+  }
+  #status {
+    margin-top: 1em;
+    font-size: 1.2em;
+    color: #cccccc;
+  }
+  #instruction {
+    font-size: 0.9em;
+    margin-top: 1em;
+    color: #aaa;
+  }
+</style>
 </head>
 <body>
-  <h1>🎙️ Mage Arena Voice Casting</h1>
-  <p>Hold the button and speak your spell (e.g. "fireball")</p>
 
-  <button id="listenButton">🎤 Hold to Cast</button>
-  <div id="status">Status: Idle</div>
+<h1>🎙️ Mage Arena Voice Casting</h1>
+<p>Hold the button and speak your spell (e.g. "fireball")</p>
 
-  <script>
-    const backendURL = "https://mage-spell-api.onrender.com";
+<button id="listenButton">🎤 Hold to Cast</button>
+<div id="status">Status: Idle</div>
+<div id="instruction" style="display:none;">
+  ⚠️ On iOS Safari, please tap and hold the button below once to enable microphone access.
+</div>
 
-    // Get userId from URL ?userId=12345
-    function getUserId() {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('userId') || null;
-    }
-    const playerId = getUserId();
+<script>
+  const backendURL = "https://mage-spell-api.onrender.com";
+  const status = document.getElementById("status");
+  const button = document.getElementById("listenButton");
+  const instruction = document.getElementById("instruction");
 
-    const status = document.getElementById("status");
-    const button = document.getElementById("listenButton");
+  // Get userId from URL query param
+  function getUserId() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('userId') || null;
+  }
+  const playerId = getUserId();
 
-    if (!playerId) {
-      status.innerText = "❌ No userId in URL";
-    }
+  if (!playerId) {
+    status.innerText = "❌ No userId in URL";
+  }
 
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
+  // Setup speech recognition
+  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
 
-    let recognitionActive = false;
+  let recognitionActive = false;
+  let manualHold = false; // track if user is holding button on page
 
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript.toLowerCase();
-      status.innerText = "🗣️ Heard: " + transcript;
-
-      fetch(backendURL + "/cast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: playerId, spell: transcript })
-      })
-        .then(() => {
-          status.innerText = "✅ Spell Sent: " + transcript;
-        })
-        .catch(() => {
-          status.innerText = "❌ Error sending spell";
-        });
-    };
-
-    recognition.onerror = (event) => {
-      status.innerText = "⚠️ Error: " + event.error;
-    };
-
-    function startRecognition() {
-      if (!recognitionActive) {
+  function startRecognition() {
+    if (!recognitionActive) {
+      try {
         recognition.start();
         recognitionActive = true;
         status.innerText = "🎧 Listening...";
+      } catch(e) {
+        status.innerText = "⚠️ " + e.message;
       }
     }
+  }
 
-    function stopRecognition() {
-      if (recognitionActive) {
-        recognition.stop();
-        recognitionActive = false;
-        status.innerText = "⏳ Processing...";
-      }
+  function stopRecognition() {
+    if (recognitionActive) {
+      recognition.stop();
+      recognitionActive = false;
+      status.innerText = "⏳ Processing...";
     }
+  }
 
-    // Poll backend for listening status every 2 seconds
-    setInterval(() => {
-      if (!playerId) return;
-      fetch(`${backendURL}/listening/${playerId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.active && !recognitionActive) {
-            startRecognition();
-          } else if (!data.active && recognitionActive) {
-            stopRecognition();
-          }
-        })
-        .catch(() => {
-          status.innerText = "⚠️ Network error";
-        });
-    }, 2000);
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript.toLowerCase();
+    status.innerText = "🗣️ Heard: " + transcript;
 
-    // Optional: manual hold-to-talk on this page (if player wants)
-    button.addEventListener("mousedown", startRecognition);
-    button.addEventListener("mouseup", stopRecognition);
-    button.addEventListener("touchstart", startRecognition);
-    button.addEventListener("touchend", stopRecognition);
-
-    // Optional: keyboard toggle with 'm' key
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "m") startRecognition();
+    fetch(backendURL + "/cast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: playerId, spell: transcript })
+    }).then(() => {
+      status.innerText = "✅ Spell Sent: " + transcript;
+    }).catch(() => {
+      status.innerText = "❌ Error sending spell";
     });
-    document.addEventListener("keyup", (e) => {
-      if (e.key === "m") stopRecognition();
-    });
-  </script>
+  };
+
+  recognition.onerror = (event) => {
+    status.innerText = "⚠️ Error: " + event.error;
+    if (event.error === 'aborted' || event.error === 'no-speech') {
+      recognitionActive = false;
+      if(manualHold) startRecognition();
+    }
+  };
+
+  recognition.onend = () => {
+    if (recognitionActive && manualHold) {
+      recognition.start();
+    } else {
+      recognitionActive = false;
+      if(manualHold) status.innerText = "⏳ Processing...";
+      else status.innerText = "Status: Idle";
+    }
+  };
+
+  // Poll backend every 2 seconds to check if Roblox wants us to listen
+  setInterval(() => {
+    if (!playerId || manualHold) return; // skip polling if user is manually holding button
+
+    fetch(`${backendURL}/listening/${playerId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.active && !recognitionActive) {
+          startRecognition();
+        } else if (!data.active && recognitionActive) {
+          stopRecognition();
+        }
+      })
+      .catch(() => {
+        status.innerText = "⚠️ Network error";
+      });
+  }, 2000);
+
+  // Handle manual hold-to-talk on the page button
+  button.addEventListener("mousedown", () => {
+    manualHold = true;
+    startRecognition();
+  });
+
+  button.addEventListener("mouseup", () => {
+    manualHold = false;
+    stopRecognition();
+  });
+
+  button.addEventListener("touchstart", () => {
+    manualHold = true;
+    startRecognition();
+  });
+
+  button.addEventListener("touchend", () => {
+    manualHold = false;
+    stopRecognition();
+  });
+
+  // Show instruction on iOS Safari (approximate detection)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if(isIOS) {
+    instruction.style.display = "block";
+  }
+</script>
+
 </body>
 </html>
