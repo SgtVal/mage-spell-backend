@@ -67,9 +67,10 @@ app.get("/listening/:userId", (req, res) => {
 app.post("/spectrum-save", async (req, res) => {
   const { userId, spell, spectrum } = req.body;
 
-  if (!userId || !spell || !Array.isArray(spectrum)) {
+  // ✅ Validate input
+  if (!userId || !spell || !Array.isArray(spectrum) || spectrum.length === 0) {
     console.warn("⚠️ Invalid spectrum payload:", req.body);
-    return res.status(400).send("Invalid spectrum data");
+    return res.status(400).send("Invalid spectrum format");
   }
 
   try {
