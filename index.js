@@ -11,12 +11,10 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 // === FIREBASE SETUP ===
-const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
-
+const serviceAccount = JSON.parse(process.env.FIREBASE_KEY); // ✅ From Render secret
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
-
 const db = admin.firestore();
 
 // === IN-MEMORY MAPS ===
@@ -24,8 +22,6 @@ const spellMap = {};
 const listeningStatus = {};
 
 // === SPELL CASTING ENDPOINTS ===
-
-// Save spell from client (mic page)
 app.post("/cast", (req, res) => {
   const { userId, spell } = req.body;
   spellMap[userId] = spell;
@@ -33,13 +29,11 @@ app.post("/cast", (req, res) => {
   res.sendStatus(200);
 });
 
-// Get spell for Roblox, then clear it
 app.get("/get-spell/:userId", (req, res) => {
   const userId = req.params.userId;
   const spell = spellMap[userId];
-
   if (spell) {
-    delete spellMap[userId]; // Clear after fetch
+    delete spellMap[userId];
     res.json({ spell });
   } else {
     res.json({});
@@ -47,8 +41,6 @@ app.get("/get-spell/:userId", (req, res) => {
 });
 
 // === MIC LISTENING STATUS ===
-
-// Set listening status (from Roblox client)
 app.post("/listening", (req, res) => {
   const { userId, active } = req.body;
   listeningStatus[userId] = active;
@@ -56,7 +48,6 @@ app.post("/listening", (req, res) => {
   res.sendStatus(200);
 });
 
-// Get current listening status (for mic UI polling)
 app.get("/listening/:userId", (req, res) => {
   const userId = req.params.userId;
   const active = listeningStatus[userId] || false;
@@ -67,7 +58,7 @@ app.get("/listening/:userId", (req, res) => {
 app.post("/spectrum-save", async (req, res) => {
   const { userId, spell, spectrum } = req.body;
 
-  // ✅ Validate input
+  // Validate payload
   if (!userId || !spell || !Array.isArray(spectrum) || spectrum.length === 0) {
     console.warn("⚠️ Invalid spectrum payload:", req.body);
     return res.status(400).send("Invalid spectrum format");
