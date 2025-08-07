@@ -66,6 +66,12 @@ app.get("/listening/:userId", (req, res) => {
 // === SAVE SPECTRUM TO FIRESTORE ===
 app.post("/spectrum-save", async (req, res) => {
   const { userId, spell, spectrum } = req.body;
+
+  if (!userId || !spell || !Array.isArray(spectrum)) {
+    console.warn("⚠️ Invalid spectrum payload:", req.body);
+    return res.status(400).send("Invalid spectrum data");
+  }
+
   try {
     await db.collection("spectrumSamples").add({
       userId,
