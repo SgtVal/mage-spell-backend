@@ -17,6 +17,7 @@ admin.initializeApp({
 });
 const db = admin.firestore();
 
+
 // === IN-MEMORY MAPS ===
 const spellMap = {};
 const listeningStatus = {};
