@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const fs = require("fs");
+const admin = require("firebase-admin");
 
 const app = express();
 app.use(cors());
@@ -10,6 +10,16 @@ app.use(express.json());
 // Serve static files (like mic page)
 app.use(express.static(path.join(__dirname, "public")));
 
+// === FIREBASE SETUP ===
+const serviceAccount = require("./firebaseKey.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+const db = admin.firestore();
+
+// === IN-MEMORY MAPS ===
 const spellMap = {};
 const listeningStatus = {};
 
@@ -53,20 +63,22 @@ app.get("/listening/:userId", (req, res) => {
   res.json({ active });
 });
 
-// === OPTIONAL: SAVE RAW SPECTRUM FOR ML TRAINING ===
-app.post("/spectrum-save", (req, res) => {
+// === SAVE SPECTRUM TO FIRESTORE ===
+app.post("/spectrum-save", async (req, res) => {
   const { userId, spell, spectrum } = req.body;
-  const timestamp = Date.now();
-  const fileName = `spectrum_${spell}_${userId}_${timestamp}.json`;
-
-  fs.writeFile(`./data/${fileName}`, JSON.stringify(spectrum), (err) => {
-    if (err) {
-      console.error("❌ Failed to save spectrum:", err);
-      return res.sendStatus(500);
-    }
-    console.log(`📊 Saved spectrum sample for '${spell}' as ${fileName}`);
+  try {
+    await db.collection("spectrumSamples").add({
+      userId,
+      spell,
+      spectrumData: spectrum,
+      timestamp: new Date(),
+    });
+    console.log(`📊 Saved spectrum sample to Firestore for '${spell}' from ${userId}`);
     res.sendStatus(200);
-  });
+  } catch (err) {
+    console.error("❌ Firestore save failed:", err);
+    res.sendStatus(500);
+  }
 });
 
 // === START SERVER ===
